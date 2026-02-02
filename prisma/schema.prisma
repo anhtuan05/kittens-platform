@@ -1,0 +1,376 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider        = "prisma-client-js"
+  output          = "../generated/prisma"
+  engineType      = "client"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// Enums
+enum AuthType {
+  local
+  google
+}
+
+// Models
+model User {
+  id                  Int       @id @default(autoincrement())
+  email               String    @unique
+  username            String?   @unique
+  password_hash       String?
+  description         String?
+  full_name           String?   
+  avatar_url          String?
+  authType            AuthType  @default(local)
+  providerId          String?
+  status              String?   @default("active")
+  
+  // Reset Password
+  resetPasswordCode   String?
+  resetPasswordExpires DateTime?
+
+  // Timestamps
+  created_at          DateTime  @default(now())
+  updated_at          DateTime  @updatedAt
+  deleted_at          DateTime?
+
+  // Relations
+  enrollments         Enrollment[]
+  comments            Comment[]
+  notifications       Notification[]
+  userRoles           UserRole[]
+  payments            Payment[]
+  certificates        Certificate[]
+  
+  // As Teacher (Direct link since Teachers table is removed)
+  taughtCourses       Course[]      @relation("TeacherCourses")
+  revenueLogs         RevenueLog[]
+
+  @@map("users")
+}
+
+model Role {
+  id          Int        @id @default(autoincrement())
+  name        String     @unique
+  deleted_at  DateTime?
+  created_at  DateTime   @default(now())
+  updated_at  DateTime   @updatedAt
+  userRoles   UserRole[]
+
+  @@map("roles")
+}
+
+model UserRole {
+  user_id     Int
+  role_id     Int
+  deleted_at  DateTime?
+  created_at  DateTime  @default(now())
+  updated_at  DateTime  @updatedAt
+
+  user        User      @relation(fields: [user_id], references: [id])
+  role        Role      @relation(fields: [role_id], references: [id])
+
+  @@id([user_id, role_id])
+  @@map("user_roles")
+}
+
+model PlatformFeeRule {
+  id          Int       @id @default(autoincrement())
+  course_type String?
+  fee_type    String?
+  value       Decimal
+  created_at  DateTime  @default(now())
+  updated_at  DateTime  @updatedAt
+
+  @@map("platform_fee_rules")
+}
+
+model Category {
+  id          Int               @id @default(autoincrement())
+  name        String
+  deleted_at  DateTime?
+  created_at  DateTime          @default(now())
+  updated_at  DateTime          @updatedAt
+  courses     CourseCategory[]
+
+  @@map("categories")
+}
+
+model Course {
+  id              Int       @id @default(autoincrement())
+  teacher_id      Int
+  title           String
+  description     String?
+  verified        Boolean   @default(false)
+  price           Decimal
+  is_free         Boolean   @default(false)
+  cover_image_url String?
+  status          String?
+  total_lessons   Int       @default(0)
+  deleted_at      DateTime?
+  created_at      DateTime  @default(now())
+  updated_at      DateTime  @updatedAt
+
+  // Relations
+  teacher         User      @relation("TeacherCourses", fields: [teacher_id], references: [id])
+  categories      CourseCategory[]
+  chapters        Chapter[]
+  enrollments     Enrollment[]
+  payments        Payment[]
+  revenueLogs     RevenueLog[]
+  certificates    Certificate[]
+  comments        Comment[]
+
+  @@map("courses")
+}
+
+model CourseCategory {
+  course_id   Int
+  category_id Int
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  course      Course   @relation(fields: [course_id], references: [id])
+  category    Category @relation(fields: [category_id], references: [id])
+
+  @@id([course_id, category_id])
+  @@map("course_categories")
+}
+
+model Chapter {
+  id          Int       @id @default(autoincrement())
+  course_id   Int
+  title       String
+  description String?
+  order_index Int?
+  deleted_at  DateTime?
+  created_at  DateTime  @default(now())
+  updated_at  DateTime  @updatedAt
+
+  course      Course    @relation(fields: [course_id], references: [id])
+  lessons     Lesson[]
+  quizzes     Quiz[]
+
+  @@map("chapters")
+}
+
+model Lesson {
+  id          Int       @id @default(autoincrement())
+  chapter_id  Int
+  title       String
+  content     String?
+  lesson_type String?   // quiz or normal lesson
+  order_index Int?
+  deleted_at  DateTime?
+  created_at  DateTime  @default(now())
+  updated_at  DateTime  @updatedAt
+
+  chapter     Chapter   @relation(fields: [chapter_id], references: [id])
+  resources   LessonResource[]
+  progress    LessonProgress[]
+  comments    Comment[]
+
+  @@map("lessons")
+}
+
+model LessonResource {
+  id            Int       @id @default(autoincrement())
+  lesson_id     Int
+  resource_type String?   // video, pdf, text, link
+  resource_url  String?
+  text_content  String?
+  order_index   Int?
+  deleted_at    DateTime?
+  created_at    DateTime  @default(now())
+  updated_at    DateTime  @updatedAt
+
+  lesson        Lesson    @relation(fields: [lesson_id], references: [id])
+
+  @@map("lesson_resources")
+}
+
+model Quiz {
+  id          Int       @id @default(autoincrement())
+  chapter_id  Int
+  deleted_at  DateTime?
+  created_at  DateTime  @default(now())
+  updated_at  DateTime  @updatedAt
+
+  chapter     Chapter   @relation(fields: [chapter_id], references: [id])
+  questions   QuizQuestion[]
+  progress    QuizProgress[]
+
+  @@map("quizzes")
+}
+
+model QuizQuestion {
+  id          Int       @id @default(autoincrement())
+  quiz_id     Int
+  question    String
+  deleted_at  DateTime?
+  created_at  DateTime  @default(now())
+  updated_at  DateTime  @updatedAt
+
+  quiz        Quiz      @relation(fields: [quiz_id], references: [id])
+  options     QuizOption[]
+
+  @@map("quiz_questions")
+}
+
+model QuizOption {
+  id          Int       @id @default(autoincrement())
+  question_id Int
+  option_text String
+  is_correct  Boolean   @default(false)
+  deleted_at  DateTime?
+  created_at  DateTime  @default(now())
+  updated_at  DateTime  @updatedAt
+
+  question    QuizQuestion @relation(fields: [question_id], references: [id])
+
+  @@map("quiz_options")
+}
+
+model QuizProgress {
+  enrollment_id Int
+  quiz_id       Int
+  score         Int
+  passed        Boolean   @default(false)
+  deleted_at    DateTime?
+  created_at    DateTime  @default(now())
+  updated_at    DateTime  @updatedAt
+
+  enrollment    Enrollment @relation(fields: [enrollment_id], references: [id])
+  quiz          Quiz       @relation(fields: [quiz_id], references: [id])
+
+  @@id([enrollment_id, quiz_id])
+  @@map("quiz_progress")
+}
+
+model Enrollment {
+  id               Int       @id @default(autoincrement())
+  student_id       Int
+  course_id        Int
+  progress_percent Int       @default(0)
+  created_at       DateTime  @default(now())
+  updated_at       DateTime  @updatedAt
+
+  student          User      @relation(fields: [student_id], references: [id])
+  course           Course    @relation(fields: [course_id], references: [id])
+  lessonProgress   LessonProgress[]
+  quizProgress     QuizProgress[]
+
+  @@map("enrollments")
+}
+
+model LessonProgress {
+  enrollment_id Int
+  lesson_id     Int
+  is_completed  Boolean   @default(false)
+  created_at    DateTime  @default(now())
+  updated_at    DateTime  @updatedAt
+
+  enrollment    Enrollment @relation(fields: [enrollment_id], references: [id])
+  lesson        Lesson     @relation(fields: [lesson_id], references: [id])
+
+  @@id([enrollment_id, lesson_id])
+  @@map("lesson_progress")
+}
+
+model Payment {
+  id             Int       @id @default(autoincrement())
+  student_id     Int
+  course_id      Int
+  amount         Decimal
+  payment_status String?
+  created_at     DateTime  @default(now())
+
+  student        User      @relation(fields: [student_id], references: [id])
+  course         Course    @relation(fields: [course_id], references: [id])
+  revenueLogs    RevenueLog[]
+
+  @@map("payments")
+}
+
+model RevenueLog {
+  id              Int     @id @default(autoincrement())
+  course_id       Int
+  teacher_id      Int
+  platform_fee    Decimal
+  teacher_earning Decimal
+  payment_id      Int
+
+  payment         Payment @relation(fields: [payment_id], references: [id])
+  course          Course  @relation(fields: [course_id], references: [id])
+  teacher         User    @relation(fields: [teacher_id], references: [id])
+
+  @@map("revenue_logs")
+}
+
+model Certificate {
+  id              Int      @id @default(autoincrement())
+  student_id      Int
+  course_id       Int
+  issued_at       DateTime @default(now())
+  certificate_url String?
+
+  student         User     @relation(fields: [student_id], references: [id])
+  course          Course   @relation(fields: [course_id], references: [id])
+
+  @@map("certificates")
+}
+
+model Comment {
+  id          Int       @id @default(autoincrement())
+  user_id     Int
+  course_id   Int
+  lesson_id   Int?
+  parent_id   Int?
+  content     String
+  created_at  DateTime  @default(now())
+
+  user        User      @relation(fields: [user_id], references: [id])
+  course      Course    @relation(fields: [course_id], references: [id])
+  lesson      Lesson?   @relation(fields: [lesson_id], references: [id])
+  parent      Comment?  @relation("CommentReplies", fields: [parent_id], references: [id])
+  replies     Comment[] @relation("CommentReplies")
+  tags        CommentTag[]
+  notifications Notification[]
+
+  @@map("comments")
+}
+
+model CommentTag {
+  comment_id     Int
+  tagged_user_id Int
+
+  comment        Comment @relation(fields: [comment_id], references: [id])
+  // Note: Tagged user relation could be added if needed, schema only listed ID reference
+
+  @@id([comment_id, tagged_user_id])
+  @@map("comment_tags")
+}
+
+model Notification {
+  id          Int       @id @default(autoincrement())
+  user_id     Int
+  comment_id  Int?
+  type        String?
+  message     String?
+  is_read     Boolean   @default(false)
+  is_clicked  Boolean   @default(false)
+  created_at  DateTime  @default(now())
+
+  user        User      @relation(fields: [user_id], references: [id])
+  comment     Comment?  @relation(fields: [comment_id], references: [id])
+
+  @@map("notifications")
+}
